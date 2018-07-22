@@ -1,9 +1,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
+	"runtime"
+	"runtime/pprof"
 	"time"
 )
 
@@ -45,7 +50,40 @@ func mainWithManualSleep() {
 	fmt.Println("mainWithManualSleep done")
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
+func profilingStart() {
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+}
+
+func profilingEnd() {
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+		f.Close()
+	}
+}
+
 func main() {
+	profilingStart()
+
 	fmt.Println("Main start")
 
 	maxLoop := 20
@@ -63,5 +101,8 @@ func main() {
 		fmt.Println("main", <-c)
 	}
 
+	time.Sleep(5 * time.Second)
 	fmt.Println("Main done")
+
+	profilingEnd()
 }
