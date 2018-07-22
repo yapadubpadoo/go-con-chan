@@ -2,24 +2,66 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"time"
 )
 
-func worker1(x int, c chan string) {
-	time.Sleep(3 * time.Second)
-	c <- fmt.Sprintf("worker1 result is %d", x*2)
+func callSija(endpoint string, c chan string) {
+	r, _ := http.Get(endpoint)
+	body, _ := ioutil.ReadAll(r.Body)
+	c <- fmt.Sprintf("%s", string(body))
 }
 
-func worker2(y int, c chan string) {
-	c <- fmt.Sprintf("worker2 result is %d", y*3)
+func mainNormal() {
+	fmt.Println("mainNormal start")
+	endpoint := "http://192.168.1.54:3000/posts"
+
+	maxLoop := 20
+	for i := 0; i < maxLoop; i++ {
+		r, _ := http.Get(fmt.Sprintf("%s/%d", endpoint, i))
+		body, _ := ioutil.ReadAll(r.Body)
+		fmt.Println("mainNormal", string(body))
+	}
+	fmt.Println("mainNormal done")
+}
+
+func mainWithManualSleep() {
+	fmt.Println("mainWithManualSleep start")
+
+	maxLoop := 20
+	endpoint := "http://192.168.1.54:3000/posts"
+	c := make(chan string)
+
+	for i := 0; i < maxLoop; i++ {
+		go callSija(fmt.Sprintf("%s/%d", endpoint, i), c)
+	}
+
+	time.Sleep(5 * time.Second)
+	for i := 0; i < maxLoop; i++ {
+		fmt.Println("mainWithManualSleep", <-c)
+	}
+
+	fmt.Println("mainWithManualSleep done")
 }
 
 func main() {
-	fmt.Println("This is main function")
-	c1 := make(chan string)
-	// c2 := make(chan int)
-	go worker1(5, c1)
-	go worker2(10, c1)
-	fmt.Println(<-c1)
-	fmt.Println(<-c1)
+	fmt.Println("Main start")
+
+	maxLoop := 20
+	endpoint := "http://192.168.1.54:3000/posts"
+	c := make(chan string)
+
+	go mainNormal()
+	go mainWithManualSleep()
+
+	for i := 0; i < maxLoop; i++ {
+		go callSija(fmt.Sprintf("%s/%d", endpoint, i), c)
+	}
+
+	for i := 0; i < maxLoop; i++ {
+		fmt.Println("main", <-c)
+	}
+
+	fmt.Println("Main done")
 }
